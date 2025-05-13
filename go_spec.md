@@ -1,3 +1,4 @@
+
 <!--{
 	"Title": "The Go Programming Language Specification",
 	"Subtitle": "Language version go1.23 (June 13, 2024)",
