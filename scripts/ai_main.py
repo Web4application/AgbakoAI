@@ -1,4 +1,6 @@
 # Import necessary libraries
+import spacy as sc
+import deepchem as dc
 import numpy as np
 import tensorflow as tf
 from sklearn.linear_model import LinearRegression
@@ -6,6 +8,22 @@ from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+
+# Load a dataset of molecular structures
+dataset = dc.data.CSVLoader(tasks=['solubility'], feature_field='smiles', id_field='id')
+
+# Create a model
+model = dc.models.GraphConvModel(n_tasks=1, mode='regression')
+
+# Train the model with the dataset
+model.fit(dataset)
+
+# Predict effectiveness for a new compound (SMILES string)
+smiles = "CCO"  # Ethanol example
+prediction = model.predict(smiles)
+print(f"Prediction for compound {smiles}: {prediction}")
 
 # Example 1: Reactive Machine (Simple Rule-Based System)
 def reactive_machine(input_value):
@@ -48,6 +66,37 @@ model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy']
 X, y = make_classification(n_samples=1000, n_features=20, random_state=42)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+# Sample data: symptoms of diseases and effectiveness of herbal compounds
+data = [
+    ['fatigue', 'ginseng', 1],
+    ['nausea', 'ginger', 1],
+    ['inflammation', 'turmeric', 1],
+    ['cough', 'peppermint', 1],
+    ['fatigue', 'lavender', 0]
+]
+
+# Convert data to a numpy array
+data = np.array(data)
+
+# Features: symptoms and herbal treatment
+X = data[:, 0]  # Symptoms (input)
+y = data[:, 2]  # Effectiveness (output)
+
+# Convert categorical features to numerical using simple encoding (just for demo purposes)
+from sklearn.preprocessing import LabelEncoder
+X = LabelEncoder().fit_transform(X).reshape(-1, 1)
+y = y.astype('int')
+
+# Train/test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Logistic Regression model for prediction
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# Test prediction
+prediction = model.predict(X_test)
+print(f"Prediction: {prediction}")
 # Train the model
 model.fit(X_train, y_train, epochs=10, batch_size=32, validation_split=0.2)
 
