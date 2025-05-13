@@ -1,4 +1,3 @@
-# Import necessary libraries
 import spacy as sc
 import deepchem as dc
 import numpy as np
