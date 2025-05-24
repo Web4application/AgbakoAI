@@ -147,7 +147,7 @@ We welcome contributions to improve AgbakoAI.
 
 * Issues: [GitHub Issues](https://github.com/QUBUHUB-incs/AgbakoAI/issues)
 * Discussions: [GitHub Discussions](https://github.com/QUBUHUB-incs/AgbakoAI/discussions)
-* Contact: [qubuhub@example.com](mailto:qubuhub@example.com)
+* Contact: [qubuhub@agbakoAI.com](mailto:qubuhub@example.com)
 
 ---
 
