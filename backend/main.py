@@ -1,58 +1,54 @@
-from fastapi import FastAPI, Depends, Request, WebSocket, HTTPException
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
-from app.auth import authenticate_user, create_access_token, get_current_user
-from app.schemas import SymptomRequest
-from app.database import SessionLocal, engine, Base
-from app.models import AIRequestLog
-from app.redis_cache import get_cached_treatment, set_cached_treatment
-from app.ai_tasks import healthcare_predict_treatment
-from fastapi.security import OAuth2PasswordRequestForm
-from datetime import timedelta
-
-Base.metadata.create_all(bind=engine)
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from pydantic import BaseModel
+import importlib
 
 app = FastAPI()
-templates = Jinja2Templates(directory="templates")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-def get_db():
-    db = SessionLocal()
+def fake_verify_token(token: str):
+    if token != "supersecrettoken":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+        )
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    fake_verify_token(token)
+    return {"username": "authorized_user"}
+
+class TaskRequest(BaseModel):
+    data: dict
+
+@app.post("/ai/run-task")
+async def run_task(industry: str, task: str, task_request: TaskRequest, user=Depends(get_current_user)):
     try:
-        yield db
-    finally:
-        db.close()
+        module_name, class_name = {
+            'healthcare': ('modules.healthcare', 'HealthcareModule'),
+            'finance': ('modules.finance', 'FinanceModule'),
+            # add more industries here
+        }[industry]
+    except KeyError:
+        raise HTTPException(status_code=400, detail="Invalid industry")
 
-@app.post("/token")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = authenticate_user(form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
-    access_token = create_access_token(data={"sub": user['username']}, expires_delta=timedelta(minutes=30))
-    return {"access_token": access_token, "token_type": "bearer"}
+    try:
+        module = importlib.import_module(module_name)
+        module_class = getattr(module, class_name)
+    except (ImportError, AttributeError) as e:
+        raise HTTPException(status_code=500, detail=f"Module load error: {str(e)}")
 
-@app.get("/", response_class=HTMLResponse)
-async def form_page(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    ai_module = module_class()
 
-@app.post("/predict_treatment")
-async def predict_treatment(data: SymptomRequest, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    cached = await get_cached_treatment(data.symptom)
-    if cached:
-        return cached
-    treatment = await healthcare_predict_treatment(data.symptom)
-    await set_cached_treatment(data.symptom, treatment)
+    if not hasattr(ai_module, task):
+        raise HTTPException(status_code=400, detail=f"Task '{task}' not supported in {industry}")
 
-    log = AIRequestLog(symptom=data.symptom, treatment=treatment["treatment"])
-    db.add(log)
-    db.commit()
+    func = getattr(ai_module, task)
+    if callable(func):
+        if callable(getattr(func, "__await__", None)):
+            result = await func(task_request.data)
+        else:
+            result = func(task_request.data)
+    else:
+        raise HTTPException(status_code=400, detail=f"Task '{task}' is not callable")
 
-    return treatment
-
-@app.websocket("/ws/progress")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    for i in range(101):
-        await websocket.send_text(f"Progress: {i}%")
-        await asyncio.sleep(0.05)
-    await websocket.close()
+    return {"result": result}
