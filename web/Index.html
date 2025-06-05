@@ -15,7 +15,25 @@
     <div id="treatmentResult"></div>
 
     <script>
-        // Add JavaScript to handle form submission and display results dynamically
+        <script>
+  const form = document.querySelector('form');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const symptom = document.getElementById('symptom').value;
+    try {
+      const res = await fetch('/get_treatment', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({symptom})
+      });
+      const data = await res.json();
+      alert('Treatment: ' + (data.treatment || data.error));
+    } catch (err) {
+      alert('Error fetching treatment');
+    }
+  });
+</script>
+
     </script>
 </body>
 </html>
