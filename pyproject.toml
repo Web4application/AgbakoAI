@@ -2,7 +2,7 @@
 name = "agbakoai"
 version = "0.1.0"
 description = "Modular AI system adaptable across sectors"
-authors = ["Kubu Lee <you@example.com>"]
+authors = ["Kubu Lee <web4application@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 packages = [{ include = "app" }]
