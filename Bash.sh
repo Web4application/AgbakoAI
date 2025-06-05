@@ -13,3 +13,4 @@ npm install express mysql2 bcryptjs jsonwebtoken dotenv
 npx create-react-app frontend
 cd frontend
 npm install axios react-router-dom tailwindcss
+pip install -r requirements.txt
