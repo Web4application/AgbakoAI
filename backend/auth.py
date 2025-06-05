@@ -1,52 +1,52 @@
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import jwt, JWTError
-from passlib.context import CryptContext
-from datetime import datetime, timedelta
-from fastapi import Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi.security import OAuth2PasswordBearer
+from pydantic import BaseModel
+import importlib
 
-SECRET_KEY = "your-very-secure-secret"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+app = FastAPI()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-fake_users_db = {
-    "kubu": {
-        "username": "kubu",
-        "hashed_password": pwd_context.hash("supersecret"),
-    }
-}
-
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-def authenticate_user(username: str, password: str):
-    user = fake_users_db.get(username)
-    if not user or not verify_password(password, user['hashed_password']):
-        return False
-    return user
-
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+def fake_verify_token(token: str):
+    # Replace with real token validation logic
+    if token != "supersecrettoken":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+        )
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    fake_verify_token(token)
+    return {"username": "authorized_user"}
+
+class TaskRequest(BaseModel):
+    data: dict
+
+@app.post("/ai/run-task")
+async def run_task(
+    industry: str,
+    task: str,
+    task_request: TaskRequest,
+    user=Depends(get_current_user)
+):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    user = fake_users_db.get(username)
-    if user is None:
-        raise credentials_exception
-    return user
+        module_name, class_name = {
+            'healthcare': ('modules.healthcare', 'HealthcareModule'),
+            'finance': ('modules.finance', 'FinanceModule'),
+            'education': ('modules.education', 'EducationModule'),
+            'marketing': ('modules.marketing', 'MarketingModule'),
+        }[industry]
+    except KeyError:
+        raise HTTPException(status_code=400, detail="Invalid industry")
+
+    module = importlib.import_module(module_name)
+    module_class = getattr(module, class_name)
+    ai_module = module_class()
+
+    if not hasattr(ai_module, task):
+        raise HTTPException(status_code=400, detail=f"Task {task} not supported")
+
+    func = getattr(ai_module, task)
+    result = func(task_request.data)
+
+    return {"result": result}
