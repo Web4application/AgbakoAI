@@ -1,73 +1,46 @@
-from flask import Flask, request, jsonify, render_template
-import os
-import logging
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Any, Dict
 
-# --- Initialize Flask app ---
-app = Flask(__name__)
+# Import your AI core and exceptions
+from agbako_ai import AgbakoAI, IndustryNotSupported, TaskNotSupported
 
-# --- Configurations ---
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+app = FastAPI(
+    title="AgbakoAI Modular API",
+    description="AI API adaptable across industries, modular & scalable",
+    version="0.1.0",
+)
 
-# Setup logging for visibility
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust in production, no wildcards for security
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# --- Helper function ---
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+# Initialize AI core once on startup
+agbako_ai = AgbakoAI()
 
-# --- Routes ---
+class TaskRequest(BaseModel):
+    industry: str
+    task: str
+    data: Dict[str, Any]  # Arbitrary data input for flexibility
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+@app.get("/")
+async def root():
+    return {"message": "Welcome to AgbakoAI 🌍"}
 
-@app.route('/upload', methods=['GET', 'POST'])
-def upload_file():
-    if request.method == 'POST':
-        if 'file' not in request.files:
-            logging.warning("No file part in request")
-            return "No file part", 400
-        file = request.files['file']
-        if file.filename == '':
-            logging.warning("No file selected")
-            return "No selected file", 400
-        if file and allowed_file(file.filename):
-            save_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-            file.save(save_path)
-            logging.info(f"File saved to {save_path}")
-            return "File uploaded successfully", 200
-        else:
-            logging.warning("File extension not allowed")
-            return "Invalid file type", 400
-    return render_template('upload.html')
-
-@app.route('/set-domain', methods=['POST'])
-def set_domain():
-    domain = request.json.get('domain')
-    if domain:
-        # Implement your domain-setting logic here
-        logging.info(f"Domain set to: {domain}")
-        return jsonify({"message": f"Domain {domain} set successfully"}), 200
-    else:
-        logging.warning("No domain provided")
-        return jsonify({"message": "Invalid domain"}), 400
-
-@app.route('/ai/analyze', methods=['POST'])
-def ai_analyze():
-    data = request.json
-    text = data.get('text', '')
-    if not text:
-        return jsonify({"error": "No text provided"}), 400
-
-    # Dummy AgbakoAI analysis simulation (replace with your real AI module)
-    from agbakoAI import AgbakoAI  # Make sure agbakoAI.py is in the same directory or installed as a package
-    ai = AgbakoAI()
-    result = ai.run_task("analyze", "machine_learning", text)
-
-    return jsonify({"input": text, "analysis": result})
-
-# --- Run the app ---
-if __name__ == '__main__':
-    app.run(debug=True)
+@app.post("/ai/run-task")
+async def run_task(request: TaskRequest):
+    try:
+        result = agbako_ai.run_task(request.industry, request.task, request.data)
+        return {"industry": request.industry, "task": request.task, "result": result}
+    except IndustryNotSupported as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except TaskNotSupported as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        # Catch-all for unexpected errors
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
