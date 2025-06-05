@@ -1,46 +1,42 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Any, Dict
+from agbakoAI import AgbakoAI, IndustryNotSupported, TaskNotSupported
+import logging
 
-# Import your AI core and exceptions
-from agbako_ai import AgbakoAI, IndustryNotSupported, TaskNotSupported
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 app = FastAPI(
-    title="AgbakoAI Modular API",
-    description="AI API adaptable across industries, modular & scalable",
+    title="AgbakoAI",
+    description="Modular AI API adaptable across industries",
     version="0.1.0",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust in production, no wildcards for security
+    allow_origins=["*"],  # Make this more strict in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize AI core once on startup
-agbako_ai = AgbakoAI()
-
-class TaskRequest(BaseModel):
-    industry: str
-    task: str
-    data: Dict[str, Any]  # Arbitrary data input for flexibility
+ai = AgbakoAI()  # Global instance for reuse
 
 @app.get("/")
-async def root():
+async def read_root():
     return {"message": "Welcome to AgbakoAI 🌍"}
 
-@app.post("/ai/run-task")
-async def run_task(request: TaskRequest):
+@app.get("/ai/run-task/")
+async def run_task(
+    industry: str = Query(..., example="healthcare"),
+    task: str = Query(..., example="predict_disease"),
+    data: str = Query(..., example="{'patient_info': 'data'}")
+):
     try:
-        result = agbako_ai.run_task(request.industry, request.task, request.data)
-        return {"industry": request.industry, "task": request.task, "result": result}
-    except IndustryNotSupported as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except TaskNotSupported as e:
+        # You can later parse `data` into JSON if your modules require dicts
+        result = ai.run_task(industry, task, {"input": data})
+        return {"result": result}
+    except (IndustryNotSupported, TaskNotSupported) as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        # Catch-all for unexpected errors
-        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+        logging.exception("Unhandled error")
+        raise HTTPException(status_code=500, detail="Internal server error")
