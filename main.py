@@ -1,7 +1,34 @@
 import pandas as pd
 import logging
 from agbakoAI import AgbakoAI  # Assuming agbakoAI.py is in the same directory
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
+app = FastAPI(
+    title="AgbakoAI",
+    description="Modular AI API adaptable across industries",
+    version="0.1.0",
+)
+
+# Configure CORS (modify as needed)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Update to specific domains in prod
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Example root route
+@app.get("/")
+async def read_root():
+    return {"message": "Welcome to AgbakoAI 🌍"}
+
+# Placeholder route for an AI module
+@app.get("/ai/analyze")
+async def analyze(text: str):
+    return {"input": text, "analysis": "🧠 This is a placeholder 
 # Setup logging for better visibility
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
